@@ -76,9 +76,17 @@ CREATE INDEX idx_items_product ON order_items(product_id);
 
 def build(path: str | Path, *, customers: int = 60, products: int = 34,
           orders: int = 260, seed: int = 42) -> Path:
-    """生成演示库。固定 seed，产物逐字节可复现。"""
+    """生成演示库。固定 seed，产物逐字节可复现。
+
+    父目录不存在就自己建 —— `data/` 被 .gitignore 排除，clone 下来的仓库
+    里没有这个目录，不建的话 sqlite3.connect 会报
+    "unable to open database file"（这个错误完全不提「目录不存在」，
+    第一次遇到会以为是该死的权限问题）。
+    """
     rng = random.Random(seed)
     target = Path(path)
+    if target.parent and not target.parent.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():
         target.unlink()
     conn = sqlite3.connect(str(target))

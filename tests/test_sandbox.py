@@ -121,3 +121,27 @@ class TestErrors:
         r.sql = "SELEC id FROM orders;"
         with pytest.raises(GuardError, match="执行失败"):
             sandbox.execute(r)
+
+
+class TestSeedDirectory:
+    """build() 必须自己建父目录。
+
+    `data/` 被 .gitignore 排除 —— clone 下来的仓库、CI 的干净 checkout、
+    Docker 构建上下文里都没有这个目录。不自动建的话 sqlite3.connect 报
+    "unable to open database file"，而这个错误完全不提示「目录不存在」。
+    CI 上第一次撞到时排查了很久，所以钉一条测试在这。
+    """
+
+    def test_creates_missing_parent_dirs(self, tmp_path):
+        from app.seed import build
+        target = tmp_path / "a" / "b" / "demo.db"
+        out = build(str(target))
+        assert out.exists() and out.stat().st_size > 0
+
+    def test_repeated_build_is_idempotent(self, tmp_path):
+        from app.seed import build
+        p = tmp_path / "again.db"
+        build(str(p))
+        first = p.read_bytes()
+        build(str(p))
+        assert p.read_bytes() == first      # 固定 seed：逐字节可复现
