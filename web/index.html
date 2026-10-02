@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>text2sql · 自然语言查数据库</title>
+<link rel="icon" href="data:,">
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --panel2:#1c2129; --line:#30363d;
+  --fg:#e6edf3; --dim:#8b949e; --dim2:#6e7681;
+  --acc:#58a6ff; --ok:#3fb950; --warn:#d29922; --err:#f85149; --purple:#bc8cff;
+  --cyan:#39c5cf;
+  --mono:'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  font-size:14px;line-height:1.6;padding:24px 20px 60px}
+.wrap{max-width:1300px;margin:0 auto}
+header{border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px}
+h1{font-size:22px;font-weight:600}
+h1 .ver{color:var(--dim2);font-size:13px;font-weight:400;margin-left:8px}
+.sub{color:var(--dim);font-size:13px;margin-top:6px;max-width:960px}
+.sub code{font-family:var(--mono);color:var(--cyan);font-size:12px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.badge{background:var(--panel2);border:1px solid var(--line);border-radius:20px;
+  padding:3px 11px;font-size:12px;color:var(--dim);font-family:var(--mono)}
+.badge b{color:var(--acc);font-weight:600}
+#dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim2);
+  margin-right:6px;vertical-align:middle}
+#dot.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+#dot.bad{background:var(--err)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:16px 18px;margin-bottom:16px}
+h2{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:9px}
+h2 .num{background:var(--acc);color:#0d1117;width:21px;height:21px;border-radius:4px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+h3{font-size:13px;font-weight:600;color:var(--dim);margin:14px 0 8px;
+  text-transform:uppercase;letter-spacing:.6px}
+textarea{background:var(--bg);border:1px solid var(--line);border-radius:5px;
+  color:var(--fg);padding:9px 11px;font-size:14px;font-family:inherit;width:100%;
+  resize:vertical;min-height:64px}
+textarea:focus{outline:none;border-color:var(--acc)}
+input{background:var(--bg);border:1px solid var(--line);border-radius:5px;
+  color:var(--fg);padding:6px 9px;font-size:13px;font-family:var(--mono);width:100%}
+input:focus{outline:none;border-color:var(--acc)}
+label{font-size:12px;color:var(--dim)}
+button{background:var(--acc);color:#0d1117;border:none;border-radius:5px;
+  padding:7px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+button:hover:not(:disabled){filter:brightness(1.12)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
+button.ghost:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}
+.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:16px;
+  padding:4px 12px;font-size:12.5px;color:var(--dim);cursor:pointer}
+.chip:hover{border-color:var(--acc);color:var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:13px;font-family:var(--mono)}
+th,td{text-align:left;padding:5px 9px;border-bottom:1px solid var(--line)}
+th{color:var(--dim);font-weight:500;font-size:12px;text-transform:uppercase}
+td.n,th.n{text-align:right}
+tbody tr:hover{background:var(--panel2)}
+.good{color:var(--ok)} .mid{color:var(--warn)} .bad{color:var(--err)} .muted{color:var(--dim2)}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:11px 13px;
+  overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55}
+pre.sql{color:var(--cyan);font-size:13.5px}
+.note{background:var(--panel2);border-left:3px solid var(--acc);padding:9px 13px;
+  font-size:12.5px;color:var(--dim);border-radius:0 5px 5px 0;margin-top:11px}
+.note.warn{border-left-color:var(--warn)} .note.ok{border-left-color:var(--ok)}
+.note.err{border-left-color:var(--err)}
+.note b{color:var(--fg)}
+.cards{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:11px 13px}
+.card .t{font-size:12px;color:var(--dim)}
+.card .v{font-size:19px;font-weight:600;font-family:var(--mono);margin-top:2px}
+.hidden{display:none!important}
+#toast{position:fixed;right:18px;bottom:18px;background:var(--panel);
+  border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:6px;
+  padding:11px 15px;max-width:440px;font-size:13px;z-index:99;box-shadow:0 6px 22px rgba(0,0,0,.5)}
+#toast.err{border-left-color:var(--err)} #toast.ok{border-left-color:var(--ok)}
+.trace{font-family:var(--mono);font-size:12px;color:var(--dim);line-height:1.9}
+.trace b{color:var(--fg)}
+.bar{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--ok)}
+.bar i.low{background:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>text2sql<span class="ver" id="ver"></span></h1>
+  <div class="sub">自然语言 → SQL → 只读沙箱。SQL 不管从哪来（规则 / LLM / 人手写），
+  都要过同一道白名单闸门：<code>只允许 SELECT</code> · <code>表名列名必须真实存在</code> ·
+  <code>强制 LIMIT</code> · <code>SQLite mode=ro + authorizer + 超时</code>。</div>
+  <div class="badges">
+    <span class="badge">服务 <span id="dot"></span><b id="healthTxt">检测中</b></span>
+    <span class="badge">LLM <b id="llmTxt">—</b></span>
+    <span class="badge">表 <b id="tblTxt">0</b></span>
+    <span class="badge">行上限 <b id="capTxt">—</b></span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="num">1</span>提问</h2>
+  <textarea id="q" placeholder="例如：金额最高的前5个订单">金额最高的前5个订单</textarea>
+  <div class="chips" id="chips"></div>
+  <div class="row">
+    <button id="btnRun">查询</button>
+    <button class="ghost" id="btnLLM">用 LLM 生成</button>
+    <button class="ghost" id="btnSchema">查看表结构</button>
+    <span style="color:var(--dim2);font-size:12px" id="elapsed"></span>
+  </div>
+</section>
+
+<section id="secSchema" class="hidden">
+  <h2><span class="num">S</span>表结构目录（生成器的"地图"）</h2>
+  <pre id="schemaOut"></pre>
+</section>
+
+<section id="secResult" class="hidden">
+  <h2><span class="num">2</span>结果</h2>
+  <div class="cards" id="statCards"></div>
+  <h3>生成的 SQL（已通过安全闸门）</h3>
+  <pre class="sql" id="sqlOut"></pre>
+  <h3>数据</h3>
+  <div style="overflow:auto;max-height:420px"><table id="dataTbl"></table></div>
+  <h3>过程（为什么是这个 SQL）</h3>
+  <div class="trace" id="traceOut"></div>
+  <div id="guardBox"></div>
+</section>
+
+<section id="secCheck" class="hidden">
+  <h2><span class="num">3</span>SQL 校验（人手写的也走同一道闸门）</h2>
+  <textarea id="rawSql" class="sql" spellcheck="false"
+    style="width:100%;min-height:84px;background:var(--bg);color:var(--fg)"
+    placeholder="粘贴任意 SQL —— 写操作、幻觉表名、幻觉列名、无 LIMIT，都会被拦下来"></textarea>
+  <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+    <button class="ghost" id="btnCheck">校验这条 SQL</button>
+    <span class="mid" id="checkHint">调用 /api/sql/check，与查询共用同一套 guard 白名单</span>
+  </div>
+  <div id="checkOut" style="margin-top:12px"></div>
+</section>
+
+<footer style="color:var(--dim2);font-size:12px;text-align:center;margin-top:24px">
+  白名单 SQL 校验 / 只读沙箱 / 规则生成器均为纯 Python 标准库 · FastAPI 仅在 HTTP 层
+</footer>
+</div>
+<div id="toast" class="hidden"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let EXAMPLES = [];
+let toastTimer;
+function toast(msg, kind=''){ const el=$('#toast'); el.textContent=msg;
+  el.className=kind; el.classList.remove('hidden');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.add('hidden'),5000); }
+const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+async function boot(){
+  try{
+    const h = await (await fetch('/api/health')).json();
+    $('#healthTxt').textContent='正常'; $('#dot').className='on';
+    $('#ver').textContent='v'+h.version;
+    $('#tblTxt').textContent=(h.tables||[]).length;
+    $('#llmTxt').textContent = h.llm_configured ? '已配置' : '未配置（用规则版）';
+    const o = await (await fetch('/api/options')).json();
+    $('#capTxt').textContent = o.row_cap;
+    EXAMPLES = o.examples || [];
+    $('#chips').innerHTML = EXAMPLES.map(e =>
+      `<span class="chip">${esc(e)}</span>`).join('');
+    document.querySelectorAll('.chip').forEach(c =>
+      c.onclick = () => { $('#q').value = c.textContent; run(false); });
+  }catch(e){ $('#healthTxt').textContent='离线'; $('#dot').className='bad'; }
+}
+
+async function run(preferLlm){
+  const q = $('#q').value.trim();
+  if (!q){ toast('先输入问题','err'); return; }
+  const btn = preferLlm ? $('#btnLLM') : $('#btnRun');
+  btn.disabled = true; btn.dataset.orig = btn.textContent;
+  btn.innerHTML = '<span style="opacity:.6">查询中…</span>';
+  try{
+    const r = await fetch('/api/query', { method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ question:q, prefer_llm:!!preferLlm }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    render(d);
+    if (d.ok) toast(`查到 ${d.row_count} 行`,'ok');
+    else toast(`被拦截：${d.error}`,'err');
+  }catch(e){ toast('失败：'+e.message,'err'); }
+  finally{ btn.disabled=false; btn.textContent=btn.dataset.orig; }
+}
+
+function render(d){
+  $('#secResult').classList.remove('hidden');
+  if (!d.ok){
+    $('#statCards').innerHTML =
+      `<div class="card"><div class="t">拦截阶段</div><div class="v bad">${esc(d.stage)}</div></div>
+       <div class="card"><div class="t">原因</div><div class="v" style="font-size:13px;white-space:normal">${esc(d.error)}</div></div>`;
+    $('#sqlOut').textContent = d.sql || '（未生成）';
+    $('#dataTbl').innerHTML = '';
+    $('#traceOut').innerHTML = traceHtml(d.trace || {});
+    $('#guardBox').innerHTML =
+      `<div class="note err"><b>安全闸门拒绝了这条 SQL</b>：${esc(d.error)}
+       <br><span style="color:var(--dim2)">${esc(d.detail||'')}</span></div>`;
+    return;
+  }
+  const t = d.trace;
+  const confPct = Math.round((t.confidence||0)*100);
+  $('#statCards').innerHTML = `
+    <div class="card"><div class="t">返回行数</div><div class="v">${d.row_count}${t.row_truncated?'<span class="mid">（截断）</span>':''}</div></div>
+    <div class="card"><div class="t">生成方式</div><div class="v">${esc(t.generator)}</div></div>
+    <div class="card"><div class="t">置信度</div><div class="v">${confPct}%</div></div>
+    <div class="card"><div class="t">耗时</div><div class="v">${(d.trace.elapsed.execute||0).toFixed(1)} ms</div></div>`;
+  $('#sqlOut').textContent = d.sql;
+  // 表格：先表头后数据，列数不一致浏览器会挤错位，所以用 thead/tbody 分开写
+  const th = d.columns.map(c => `<th>${esc(c)}</th>`).join('');
+  const trs = d.rows.map(row =>
+    '<tr>' + d.columns.map(c => {
+      const v = row[c];
+      return `<td>${v === null ? '<span class="muted">NULL</span>' : esc(v)}</td>`;
+    }).join('') + '</tr>').join('');
+  $('#dataTbl').innerHTML =
+    `<thead><tr>${th}</tr></thead><tbody>${trs || '<tr><td colspan="99" class="muted">没有数据</td></tr>'}</tbody>`;
+  $('#traceOut').innerHTML = traceHtml(t);
+  const notes = (d.guard.notes || []);
+  $('#guardBox').innerHTML = notes.length
+    ? `<div class="note warn"><b>闸门说明</b><br>${notes.map(esc).join('<br>')}</div>`
+    : `<div class="note ok">SQL 通过了全部安全检查：语句类型白名单、表/列白名单、函数白名单、行数上限。</div>`;
+  $('#elapsed').textContent = `生成 ${t.elapsed.generate||0}ms · 校验 ${t.elapsed.guard||0}ms · 执行 ${t.elapsed.execute||0}ms`;
+}
+
+function traceHtml(t){
+  const rows = [
+    ['识别到的模式', (t.matched||[]).join('、') || '—'],
+    ['置信度', `${Math.round((t.confidence||0)*100)}%`],
+    ['用到的表', (t.tables_used||[]).join('、') || '—'],
+    ['用到的列', (t.columns_used||[]).slice(0,12).join('、')
+      + ((t.columns_used||[]).length > 12 ? ` …共 ${t.columns_used.length} 列` : '')],
+  ];
+  return '<table>' + rows.map(([k,v]) =>
+    `<tr><td style="color:var(--dim2);width:130px">${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`).join('')
+    + '</table>';
+}
+
+$('#btnRun').onclick = () => run(false);
+$('#btnLLM').onclick = () => run(true);
+$('#btnSchema').onclick = async () => {
+  const sec = $('#secSchema');
+  if (!sec.classList.contains('hidden')){ sec.classList.add('hidden'); return; }
+  try{
+    const d = await (await fetch('/api/schema/prompt')).json();
+    $('#schemaOut').textContent = d.prompt;
+    sec.classList.remove('hidden');
+  }catch(e){ toast(e.message,'err'); }
+};
+
+// ---- SQL 校验面板：证明「同一道闸门」不因 SQL 来源放宽 ------------------
+$('#btnCheck').onclick = async () => {
+  const sql = $('#rawSql').value.trim();
+  if (!sql){ toast('先粘贴 SQL','err'); return; }
+  const btn = $('#btnCheck');
+  btn.disabled = true; btn.dataset.orig = btn.textContent;
+  btn.innerHTML = '<span style="opacity:.6">校验中…</span>';
+  const out = $('#checkOut');
+  try{
+    const r = await fetch('/api/sql/check', { method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ sql }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    if (d.ok){
+      const rp = d.report;
+      out.innerHTML =
+        `<div class="cards">
+          <div class="card"><div class="t">结论</div><div class="v ok">通过 ✅</div></div>
+          <div class="card"><div class="t">用到的表</div><div class="v">${esc(rp.tables_used.join(', ')||'—')}</div></div>
+          <div class="card"><div class="t">函数</div><div class="v">${esc(rp.functions_used.join(', ')||'—')}</div></div>
+          <div class="card"><div class="t">LIMIT</div><div class="v">${rp.has_limit ? (rp.limit_clamped?'收紧到上限':'已有') : '已补 200'}</div></div>
+        </div>
+        <h3>落库的 SQL</h3><pre class="sql">${esc(rp.sql)}</pre>`;
+      toast('校验通过','ok');
+    }else{
+      out.innerHTML =
+        `<div class="cards">
+          <div class="card"><div class="t">结论</div><div class="v bad">拦截 🚫</div></div>
+          <div class="card"><div class="t">原因</div><div class="v" style="font-size:13px;white-space:normal">${esc(d.error)}</div></div>
+        </div>
+        <div class="mid" style="margin-top:8px">${esc(d.detail||'')}</div>`;
+      toast('被安全闸门拦截','err');
+    }
+  }catch(e){ toast('失败：'+e.message,'err'); }
+  finally{ btn.disabled=false; btn.textContent=btn.dataset.orig; }
+};
+
+boot();
+</script>
+</body>
+</html>

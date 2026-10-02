@@ -1,0 +1,14 @@
+services:
+  text2sql:
+    build: .
+    ports:
+      - "8133:8133"
+    environment:
+      TEXT2SQL_ROW_CAP: "200"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8133/api/health',timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
